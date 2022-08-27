@@ -301,6 +301,7 @@ jobs:
             sudo apt-get update 
             sudo apt install -y jq
             sudo apt-get install -y docker-compose-plugin
+            npm install snyk -g
       - run:
           name: install linter
           command: |
@@ -312,7 +313,7 @@ jobs:
             . ~/.devops/bin/activate
             make lint    
       - run:
-          name: Build app and push to dockerhub
+          name: Build app
           command: |
             # Get dockerhub credentials from aws secretsmanager
             DOCKERHUB_USERNAME=$(aws ssm get-parameter \
@@ -321,15 +322,42 @@ jobs:
             DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
                 --name /aws/reference/secretsmanager/dockerhub \
                 --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
-            printf "%s/%s" "${DOCKERHUB_USERNAME}" "px4_sitl > /tmp/docker_tag.out
+            printf "%s/%s" "${DOCKERHUB_USERNAME}" "notebook" > /tmp/docker_tag.out
             dockerpath=$(cat /tmp/docker_tag.out)
-            printf "dockerpath=%s" "$dockerpath" > /tmp/.env.ci
+            echo "Docker ID and Image: $dockerpath"
+            docker build --tag "$dockerpath:latest" .
+            docker image ls
+      - run:
+          name: Scan app
+          command: |
+            # Get dockerhub credentials from aws secretsmanager
+            DOCKERHUB_USERNAME=$(aws ssm get-parameter \
+                --name /aws/reference/secretsmanager/dockerhub \
+                --with-decryption --output text --query "Parameter.Value" | jq -r ."username")
+            DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
+                --name /aws/reference/secretsmanager/dockerhub \
+                --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
+            echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin 
+            dockerpath=$(cat /tmp/docker_tag.out)
+            docker scan $dockerpath
+      - run:
+          name: Test app
+          command: |
+            docker compose run notebook npm test            
+      - run:
+          name: Push app to dockerhub
+          command: |
+            # Get dockerhub credentials from aws secretsmanager
+            DOCKERHUB_USERNAME=$(aws ssm get-parameter \
+                --name /aws/reference/secretsmanager/dockerhub \
+                --with-decryption --output text --query "Parameter.Value" | jq -r ."username")
+            DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
+                --name /aws/reference/secretsmanager/dockerhub \
+                --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
+            dockerpath=$(cat /tmp/docker_tag.out)
             echo "Docker ID and Image: $dockerpath"
             echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin 
-            # docker build --tag "$dockerpath:latest" .
-            docker compose --env-file=/tmp/.env.ci build
-            docker image ls
-            docker push "$dockerpath:latest"
+            docker push "$dockerpath:latest"            
       - run:
           name: Cleanup docker config
           when: on_fail
@@ -338,7 +366,9 @@ jobs:
             # Rotate dockerhub and AWS ECR credentials
             # To reduce security risk configure docker credential store before login
             # https://docs.docker.com/engine/reference/commandline/login/#credentials-store
-            rm -rf ~/.docker/config.json
+            if [ -f ~/.docker/config.json ]; then
+              rm -rf ~/.docker/config.json
+            fi
       - run:
           name: Cleanup aws config
           when: on_fail
@@ -347,7 +377,7 @@ jobs:
             rm -f $AWS_SHARED_CREDENTIALS_FILE
             rm -f $AWS_CONFIG_FILE
 workflows:
-  build:
+  ci-workflow:
     jobs:
       - build-app:
           pre-steps:
