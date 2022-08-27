@@ -10,7 +10,7 @@ services:
     volumes:
       - app-db:/var/lib/postgresql/data
 
-  app:
+  notebook:
     build:
       context: .
     environment:

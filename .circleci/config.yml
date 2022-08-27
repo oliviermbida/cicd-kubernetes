@@ -343,7 +343,7 @@ jobs:
       - run:
           name: Test app
           command: |
-            docker compose run notebook npm test            
+            yes Y | docker compose run notebook npm test            
       - run:
           name: Push app to dockerhub
           command: |
