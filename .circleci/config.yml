@@ -106,173 +106,6 @@ commands:
             PARAM_AWS_CLI_REGION: <<parameters.region>>
             PARAM_AWS_CLI_SECRET_ACCESS_KEY: <<parameters.secret_access_key>>
 
-# create_changes
-# Multi IAM User and roles needed for various steps in creating
-# aws infrasturcture.
-# Here is where users with different credentials access aws.
-# The critical issue is setting up aws cli env variables and config for those iam users when needed.
-# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION could be set in a restricted context or project level
-# but it will create an issue of only allowing one user whose credentials are set at that level.
-# Another solution will be to create different profiles/credentials in 
-# AWS_CONFIG_FILE~/.aws/config and AWS_SHARED_CREDENTIALS_FILE=~/.aws/credentials then use them here with a shared workspace. 
-  create_changes:
-    description: Create stack infrasturcture changes 
-    parameters:
-      access_key_id: 
-        type: string
-        description: AWS access key Id
-        default: $AWS_USER_ACCESS_KEY_ID
-      secret_access_key: 
-        type: string
-        description: AWS secret access key
-        default: $AWS_USER_SECRET_ACCESS_KEY
-      region: 
-        type: string
-        description: AWS default region
-        default: $AWS_DEFAULT_REGION
-      stackname:
-        description: Name of top level stack 
-        type: string
-      workflowID: 
-        description: Deployment workflow ID
-        type: string
-        default: "${CIRCLE_WORKFLOW_ID:0:7}"
-      s3bucket:
-        description: Name of S3 bucket to store cloudformation artifacts 
-        type: string
-        default: $CFN_BUCKET
-      changename:
-        description: Name of stack change set
-        type: string 
-      version:
-        description: Template version
-        type: string 
-      capabilities:
-        description: IAM user 
-        type: string
-        default: $AWS_IAM   
-      type:
-        description: Type of change 
-        type: string
-        default: UPDATE 
-    steps:
-      - configure_aws:
-          access_key_id: <<parameters.access_key_id>>
-          secret_access_key: <<parameters.secret_access_key>>
-          region: <<parameters.region>>
-      - run:
-          name: Upload artifacts to S3 
-          working_directory: ./templates
-          command: |
-            aws cloudformation package --template-file \
-              stacks_v<<parameters.version>>.yaml \
-              --s3-bucket <<parameters.s3bucket>> \
-              --output-template-file stacks_v<<parameters.version>>-packaged.yaml
-      - run: 
-          name: Wait for local file
-          working_directory: ./templates
-          command: |
-            # Wait for local file
-            while [ ! -f "stacks_v<<parameters.version>>-packaged.yaml" ] ; do
-              echo "..."
-            done        
-      - run:
-          name: Apply <<parameters.changename>> changes
-          working_directory: ./templates
-          command: |
-            export WORKFLOW_ID=$(eval echo "$PARAM_WORKFLOW_ID")
-            change_set_ID=$(aws --output text --query "Id" cloudformation create-change-set \
-              --stack-name <<parameters.stackname>> \
-              --template-body file://stacks_v<<parameters.version>>-packaged.yaml \
-              --parameters ParameterKey=workflowID,ParameterValue="$WORKFLOW_ID" \
-              --capabilities <<parameters.capabilities>> \
-              --change-set-name <<parameters.changename>> \
-              --change-set-type <<parameters.type>> )
-          environment: 
-            PARAM_WORKFLOW_ID: <<parameters.workflowID>>
-      - run:
-          name: <<parameters.changename>> Status 
-          command: |
-            while [ 1 ]   # Endless loop.
-            do
-                change_Status=$(aws --output text --query "Status" cloudformation describe-change-set \
-                    --change-set-name <<parameters.changename>> --stack-name <<parameters.stackname>>)
-                echo "Change Status: $change_Status"
-                if [[ $change_Status == "CREATE_COMPLETE" ]]; then
-                    echo "Exiting change-set status: $change_Status"
-                    exit 0
-                fi
-                sleep 5
-            done
-      - run:
-          name: Ensure <<parameters.changename>>  exist
-          command: |
-            aws cloudformation execute-change-set --change-set-name <<parameters.changename>> --stack-name <<parameters.stackname>>
-      - run:
-          name: Creation Status 
-          command: |
-            while [ 1 ]   # Endless loop.
-            do
-                stack_Status=$(aws --output text --query "Stacks[0].StackStatus" cloudformation describe-stacks \
-                    --stack-name <<parameters.stackname>>)
-                echo "Stack Status: $stack_Status"
-                if [[ $stack_Status == "CREATE_COMPLETE" || $stack_Status == "UPDATE_COMPLETE"  ]]; then
-                    echo "Exiting stack status: $stack_Status"
-                    exit 0
-                elif [[ $stack_Status == "CREATE_FAILED" || $stack_Status == "ROLLBACK_IN_PROGRESS" || $stack_Status == "ROLLBACK_COMPLETE" || $stack_Status == "UPDATE_ROLLBACK_COMPLETE" || $stack_Status == "DELETE_IN_PROGRESS" ]]; then
-                    echo "Exiting stack status: $stack_Status"
-                    exit 1
-                fi
-                sleep 5
-            done
-      - run:
-          name: Cleanup aws config
-          command: |
-            # cleanup
-            rm -f $AWS_SHARED_CREDENTIALS_FILE
-            rm -f $AWS_CONFIG_FILE
-  security_changes:
-    description: Create IAM roles and Security groups 
-    parameters:
-      access_key_id: 
-        type: string
-        description: AWS access key Id
-        default: $AWS_ADMIN_ACCESS_KEY_ID
-      secret_access_key: 
-        type: string
-        description: AWS secret access key
-        default: $AWS_ADMIN_SECRET_ACCESS_KEY
-      region: 
-        type: string
-        description: AWS default region
-        default: $AWS_DEFAULT_REGION
-      stackname:
-        description: Name of top level stack 
-        type: string
-      workflowID: 
-        description: Deployment workflow ID
-        type: string
-        default: "${CIRCLE_WORKFLOW_ID:0:7}"
-      changename:
-        description: Name of stack change set
-        type: string 
-      type:
-        description: Type of change 
-        type: string
-        default: UPDATE  
-      version:
-        description: Template version
-        type: string 
-    steps:     
-      - create_changes:
-          access_key_id: <<parameters.access_key_id>>
-          secret_access_key: <<parameters.secret_access_key>>
-          region: <<parameters.region>>
-          stackname: <<parameters.stackname>>
-          workflowID: <<parameters.workflowID>>
-          changename: <<parameters.changename>>
-          version: <<parameters.version>>
-          type: <<parameters.type>>
 # 
 jobs:
   # https://circleci.com/docs/building-docker-images          
@@ -377,6 +210,32 @@ jobs:
             # cleanup
             rm -f $AWS_SHARED_CREDENTIALS_FILE
             rm -f $AWS_CONFIG_FILE
+
+  deploy-infrastructure:
+    docker:
+      - image: cimg/base:2020.05
+    steps:
+      - check_job:
+          start_job: <<pipeline.parameters.run_deploy_infrastructure>>
+      - install_aws
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+            echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check >/dev/null 2>&1 || \
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            kubectl version --short
+      - run:
+          name: Deploy kubernetes cluster
+          command: |
+            ./scripts/deploy_eks.sh  
+      - run:
+          name: Configure kubectl
+          command: |
+            aws eks update-kubeconfig --name $CLUSTERNAME
+            aws eks describe-cluster --name $CLUSTERNAME
 workflows:
   ci-workflow:
     jobs:
@@ -389,4 +248,14 @@ workflows:
           filters:
             branches:
               only: master
-    
+  cd-workflow:
+    jobs:
+      - deploy-infrastructure:
+          pre-steps:
+            - cancel-workflow      
+          context:
+            - org-global
+            - aws-context
+          filters:
+            branches:
+              only: release    
