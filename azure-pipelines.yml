@@ -1,0 +1,41 @@
+# Pipeline for PX4 Autopilot (SITL)
+
+trigger:
+- master
+
+pool:
+  name: devpool
+  demands:
+   - agent.name -equals ai-cloudsolutions
+variables:
+  imageName: app
+  dockerRegistryServiceConnection: azure-pipelines-ci
+  imageRepository: 'uavsystems'
+  containerRegistry: docker.io #replace with the name of your container registry, Should be in the format example.azurecr.io
+  tag: 'v1.0.$(Build.BuildId)'
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      name: devpool
+      demands:
+       - agent.name -equals mydockeragent
+    steps:
+    - task: Docker@2
+      displayName: Build and push image
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: '$(imageRepository)/$(imageName)'
+        command: buildAndPush
+        Dockerfile: Dockerfile
+        tags: |
+          $(tag)
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        artifactName: 'manifests'
+        path: '$(Build.ArtifactStagingDirectory)'
