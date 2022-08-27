@@ -1,7 +1,7 @@
 #
 # CI development environment
 #
-FROM node:16.15-alpine3.14
+FROM node:18.1.0-alpine3.14
 LABEL maintainer="Olivier Mbida <oliver.mbida@ai-uavsystems.com>"
 
 WORKDIR /app
