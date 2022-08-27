@@ -43,3 +43,25 @@ Follow the instructions in the link below to run a linux machine agent:
   
 Configure: `./config.sh --unattended --url <url> --auth pat --token <token> --pool <pool> --agent <agent> --replace --work <workDirectory> --acceptTeeEula`
 
+# Miscellaneous
+
+For local testing:
+
+`make all`
+
+This will setup a devops virtual environment , install the linters and run lint.
+
+`make validate-circleci`
+
+This will validate your configuration in `.circleci/config.yml`
+
+See `Makefile` for all the targets.
+
+Manually verify format of Makefile:
+
+`cat -e -t -v Makefile`
+
+It shows the presence of tabs with ^I and line endings with $.
+Each line of instructions should start with ^I and end with $.
+
+
