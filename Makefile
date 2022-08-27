@@ -53,7 +53,7 @@ lint:
 	# This should be run from inside a virtualenv
 	#pylint --disable=R,C,W1203,W1202 *.py
 	# This is the linter for cloudformation
-	cfn-lint *.yaml *.yml
+	#cfn-lint *.yaml *.yml
 clean:
 	@if [ -f "~/.circleci/cli.yml" ]; then \
 		rm -f ~/.circleci/cli.yml; \
