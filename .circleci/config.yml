@@ -339,11 +339,11 @@ jobs:
                 --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
             echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin 
             dockerpath=$(cat /tmp/docker_tag.out)
-            docker scan $dockerpath
+            yes Y | docker scan $dockerpath
       - run:
           name: Test app
           command: |
-            yes Y | docker compose run notebook npm test            
+            docker compose run notebook npm test            
       - run:
           name: Push app to dockerhub
           command: |
