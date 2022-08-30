@@ -5,9 +5,9 @@ parameters:
   run_build_app:
     type: boolean
     default: true
-#   run_deploy_app:
-#     type: boolean
-#     default: false  
+  run_deploy_infrastructure:
+    type: boolean
+    default: false  
 
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
@@ -155,10 +155,10 @@ jobs:
             DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
                 --name /aws/reference/secretsmanager/dockerhub \
                 --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
-            printf "%s/%s" "${DOCKERHUB_USERNAME}" "notebook" > /tmp/docker_tag.out
+            printf "%s/%s:%s" "${DOCKERHUB_USERNAME}" "notebook" "${WORKFLOW_ID}" > /tmp/docker_tag.out
             dockerpath=$(cat /tmp/docker_tag.out)
             echo "Docker ID and Image: $dockerpath"
-            docker build --tag "$dockerpath:latest" .
+            docker build --tag "$dockerpath" .
             docker image ls
       - run:
           name: Scan app
@@ -172,12 +172,15 @@ jobs:
                 --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
             echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin 
             dockerpath=$(cat /tmp/docker_tag.out)
-            # Fix Bug exit code 141 even though scan passed.
+            # "true" to fix Bug exit code 141 even though scan passed.
+            # remove to get updated scan
             yes Y | docker scan $dockerpath || true
       - run:
           name: Test app
           command: |
-            docker compose run notebook npm test            
+            dockerpath=$(cat /tmp/docker_tag.out)
+            export $dockerpath
+            docker compose run notebook npm test              
       - run:
           name: Push app to dockerhub
           command: |
@@ -191,7 +194,7 @@ jobs:
             dockerpath=$(cat /tmp/docker_tag.out)
             echo "Docker ID and Image: $dockerpath"
             echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin 
-            docker push "$dockerpath:latest"            
+            docker push "$dockerpath"             
       - run:
           name: Cleanup docker config
           when: on_fail
@@ -210,7 +213,7 @@ jobs:
             # cleanup
             rm -f $AWS_SHARED_CREDENTIALS_FILE
             rm -f $AWS_CONFIG_FILE
-
+#
   deploy-infrastructure:
     docker:
       - image: cimg/base:2020.05
@@ -228,8 +231,9 @@ jobs:
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
             kubectl version --short
       - run:
-          name: Deploy kubernetes cluster
+          name: Deploy kubernetes cluster 
           command: |
+            export STACKNAME=$CLUSTERNAME 
             ./scripts/deploy_eks.sh  
       - run:
           name: Configure kubectl
@@ -237,7 +241,7 @@ jobs:
             aws eks update-kubeconfig --name $CLUSTERNAME
             aws eks describe-cluster --name $CLUSTERNAME
 workflows:
-  ci-workflow:
+  default:
     jobs:
       - build-app:
           pre-steps:
@@ -248,11 +252,9 @@ workflows:
           filters:
             branches:
               only: master
-  cd-workflow:
-    jobs:
       - deploy-infrastructure:
-          pre-steps:
-            - cancel-workflow      
+          requires:
+            - build-app      
           context:
             - org-global
             - aws-context
