@@ -7,7 +7,7 @@ parameters:
     default: true
   run_deploy_infrastructure:
     type: boolean
-    default: false  
+    default: true  
 
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
@@ -155,10 +155,11 @@ jobs:
             DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
                 --name /aws/reference/secretsmanager/dockerhub \
                 --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
             printf "%s/%s:%s" "${DOCKERHUB_USERNAME}" "notebook" "${WORKFLOW_ID}" > /tmp/docker_tag.out
             dockerpath=$(cat /tmp/docker_tag.out)
             echo "Docker ID and Image: $dockerpath"
-            docker build --tag "$dockerpath" .
+            docker build --tag $dockerpath .
             docker image ls
       - run:
           name: Scan app
@@ -179,7 +180,7 @@ jobs:
           name: Test app
           command: |
             dockerpath=$(cat /tmp/docker_tag.out)
-            export $dockerpath
+            export dockerpath
             docker compose run notebook npm test              
       - run:
           name: Push app to dockerhub
@@ -191,7 +192,7 @@ jobs:
             DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
                 --name /aws/reference/secretsmanager/dockerhub \
                 --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
-            dockerpath=$(cat /tmp/docker_tag.out)
+            export dockerpath=$(cat /tmp/docker_tag.out)
             echo "Docker ID and Image: $dockerpath"
             echo "${DOCKERHUB_PASSWORD}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin 
             docker push "$dockerpath"             
@@ -220,8 +221,11 @@ jobs:
     steps:
       - check_job:
           start_job: <<pipeline.parameters.run_deploy_infrastructure>>
-      - install_aws
       - checkout
+      - install_aws
+      - configure_aws:
+          access_key_id: $AWS_ADMIN_ACCESS_KEY_ID
+          secret_access_key: $AWS_ADMIN_SECRET_ACCESS_KEY        
       - run:
           name: Install dependencies
           command: |

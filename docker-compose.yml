@@ -11,9 +11,9 @@ services:
       - app-db:/var/lib/postgresql/data
 
   notebook:
-    build:
-      context: .
+    image: $dockerpath
     environment:
+    	dockerpath:    
       DB_SCHEMA: postgres
       DB_USER: postgres
       DB_PASSWORD: postgres
@@ -22,6 +22,5 @@ services:
       - postgres
     ports:
       - '3000:3000'
-        
 volumes:
   app-db:
