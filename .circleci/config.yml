@@ -8,7 +8,9 @@ parameters:
   run_deploy_infrastructure:
     type: boolean
     default: false  
-
+  run_configure_infrastructure:
+    type: boolean
+    default: true  
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
   check_job:
@@ -281,6 +283,78 @@ jobs:
             fi
             rm -f $AWS_SHARED_CREDENTIALS_FILE
             rm -f $AWS_CONFIG_FILE            
+  configure-infrastructure:
+    docker:
+      - image: cimg/base:2020.05
+    steps:
+      - check_job:
+          start_job: <<pipeline.parameters.run_configure_infrastructure>>
+      - checkout
+      - install_aws      
+      - configure_aws:
+          access_key_id: $AWS_ADMIN_ACCESS_KEY_ID
+          secret_access_key: $AWS_ADMIN_SECRET_ACCESS_KEY
+      - run:
+          name: Install dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+            # echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check >/dev/null 2>&1 || \
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            #kubectl version --short
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
+             | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+            # eksctl version
+            curl https://baltocdn.com/helm/signing.asc | \
+            gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+            sudo apt-get install apt-transport-https --yes
+            echo "deb [arch=$(dpkg --print-architecture) \
+            signed-by=/usr/share/keyrings/helm.gpg] \
+            https://baltocdn.com/helm/stable/debian/ all main" | \
+            sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+            sudo apt-get update
+            sudo apt-get install helm
+            helm version
+      - run:
+          name: Configure kubectl
+          command: |
+            aws eks update-kubeconfig --name ${CLUSTERNAME}
+            aws eks describe-cluster --name ${CLUSTERNAME} 
+            kubectl version --short
+            eksctl version
+      - run:
+          name: Configure OIDC for $CLUSTERNAME
+          command: |
+            oidc_id=$(aws eks describe-cluster --name ${CLUSTERNAME}S --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f 5)
+            if [ $oidc_id != "" ]; then      
+            	eksctl utils associate-iam-oidc-provider --cluster $CLUSTERNAME --approve
+            fi
+      - run:
+        name: Install AWS Load Balancer Controller add-on
+        command: |
+            curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.3/docs/install/iam_policy.json						
+            aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+            eksctl create iamserviceaccount --cluster=eks-cluster --namespace=kube-system --name=aws-load-balancer-controller \
+            --role-name "AmazonEKSLoadBalancerControllerRole" \
+            --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve
+            
+            helm repo add eks https://aws.github.io/eks-charts
+            helm repo update
+            AWS_REGION=$(aws configure get region)
+            AWS_ECR_ACCOUNT_URL="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"  
+            kubectl apply \
+            		--validate=false \
+            		-f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+            curl -Lo v2_4_3_full.yaml https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.4.3/v2_4_3_full.yaml
+            sed -i.bak -e '480,488d' ./v2_4_3_full.yaml
+            sed -i.bak -e 's|your-cluster-name|${CLUSTERNAME}|' ./v2_4_3_full.yaml
+            kubectl apply -f v2_4_3_full.yaml
+            kubectl rollout status -f v2_4_3_full.yaml --timeout=15s						
+            curl -Lo v2_4_3_ingclass.yaml https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases/download/v2.4.3/v2_4_3_ingclass.yaml
+            kubectl apply -f v2_4_3_ingclass.yaml
+            kubectl get deployment -n kube-system aws-load-balancer-controller
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
@@ -306,4 +380,12 @@ workflows:
             branches:
               only: master
             tags:
-              only: /^v.*/              
+              only: /^v.*/      
+      - configure-infrastructure:
+          requires: 
+            - deploy-infrastructure              
+          context:
+            - org-global
+            - aws-context
+          filters:
+            <<: *filters-production
