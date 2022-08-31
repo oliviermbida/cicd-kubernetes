@@ -247,8 +247,8 @@ jobs:
             aws cloudformation package --template-file ./templates/cluster.yaml \
               --s3-bucket ${BUCKET} \
               --output-template-file ./templates/cluster-packaged.yaml
-            while [ ! -f "./templates/cluster-packaged.yaml" ] ; do \
-              echo "..." \
+            while [ ! -f "./templates/cluster-packaged.yaml" ] ; do 
+              echo "..."
             done 
             aws cloudformation deploy --template-file ./templates/cluster-packaged.yaml \
              --stack-name ${STACKNAME} --region ${AWS_REGION} --capabilities CAPABILITY_NAMED_IAM
