@@ -13,7 +13,6 @@ services:
   notebook:
     image: $dockerpath
     environment:
-    	dockerpath:    
       DB_SCHEMA: postgres
       DB_USER: postgres
       DB_PASSWORD: postgres
