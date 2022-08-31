@@ -244,6 +244,17 @@ jobs:
           command: |
             aws eks update-kubeconfig --name $CLUSTERNAME
             aws eks describe-cluster --name $CLUSTERNAME
+      - run:
+          name: Test KubeConfig
+          command: |
+            # kubectl config show
+            kubectl get namespaces --show-labels
+      - run:
+          name: Cleanup KubeConfig
+          command: |
+            # cleanup
+            rm -rf ~/.kube
+# build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
     jobs:
@@ -256,12 +267,16 @@ workflows:
           filters:
             branches:
               only: master
+            tags:
+              only: /^v.*/              
       - deploy-infrastructure:
           requires:
             - build-app      
           context:
             - org-global
             - aws-context
-          filters:
+          filters: &filters-production
             branches:
-              only: release    
+              only: master
+            tags:
+              only: /^v.*/              
