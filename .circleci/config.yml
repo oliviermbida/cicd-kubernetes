@@ -231,14 +231,27 @@ jobs:
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
-            echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check >/dev/null 2>&1 || \
+            # echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check >/dev/null 2>&1 || \
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            kubectl version --short
+            sudo apt update
+            sudo apt install -y python3-pip
+            pip3 install envsubst
       - run:
           name: Deploy kubernetes cluster 
           command: |
             export STACKNAME=$CLUSTERNAME 
-            ./scripts/deploy_eks.sh  
+            export BUCKET="eks-tmp-$(LC_CTYPE=C tr -dc 'a-z0-9' </dev/urandom | fold -w 16 | head -n 1)"
+            aws s3 mb s3://${BUCKET} --region ${AWS_REGION} 
+            envsubst < ./templates/policy.json | tee ./templates/_policy.json > /dev/null
+            aws s3api put-bucket-policy --bucket ${BUCKET} --policy file://./templates/_policy.json --region ${AWS_REGION} 
+            aws cloudformation package --template-file ./templates/cluster.yaml \
+              --s3-bucket ${BUCKET} \
+              --output-template-file ./templates/cluster-packaged.yaml
+            while [ ! -f "./templates/cluster-packaged.yaml" ] ; do \
+              echo "..." \
+            done 
+            aws cloudformation deploy --template-file ./templates/cluster-packaged.yaml \
+             --stack-name ${STACKNAME} --region ${AWS_REGION} --capabilities CAPABILITY_NAMED_IAM
       - run:
           name: Configure kubectl
           command: |
@@ -248,12 +261,25 @@ jobs:
           name: Test KubeConfig
           command: |
             # kubectl config show
+            kubectl version --short
             kubectl get namespaces --show-labels
       - run:
-          name: Cleanup KubeConfig
+          name: Cleanup 
           command: |
             # cleanup
             rm -rf ~/.kube
+            rm -f $AWS_SHARED_CREDENTIALS_FILE
+            rm -f $AWS_CONFIG_FILE            
+      - run:
+          name: Cleanup 
+          when: on_fail
+          command: |
+            # cleanup
+            if [ -d ~/.kube ]; then 
+              rm -rf ~/.kube  
+            fi
+            rm -f $AWS_SHARED_CREDENTIALS_FILE
+            rm -f $AWS_CONFIG_FILE            
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
