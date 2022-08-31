@@ -7,7 +7,7 @@ parameters:
     default: true
   run_deploy_infrastructure:
     type: boolean
-    default: true  
+    default: false  
 
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
@@ -238,6 +238,7 @@ jobs:
             pip3 install envsubst
       - run:
           name: Deploy kubernetes cluster 
+          no_output_timeout: 30m
           command: |
             export STACKNAME=$CLUSTERNAME 
             export BUCKET="eks-tmp-$(LC_CTYPE=C tr -dc 'a-z0-9' </dev/urandom | fold -w 16 | head -n 1)"
