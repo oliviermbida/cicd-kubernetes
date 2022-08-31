@@ -282,7 +282,8 @@ jobs:
               rm -rf ~/.kube  
             fi
             rm -f $AWS_SHARED_CREDENTIALS_FILE
-            rm -f $AWS_CONFIG_FILE            
+            rm -f $AWS_CONFIG_FILE  
+#            
   configure-infrastructure:
     docker:
       - image: cimg/base:2020.05
@@ -319,30 +320,33 @@ jobs:
       - run:
           name: Configure kubectl
           command: |
-            aws eks update-kubeconfig --name ${CLUSTERNAME}
-            aws eks describe-cluster --name ${CLUSTERNAME} 
+            aws eks update-kubeconfig --name ${CLUSTERNAME} 
+            # aws eks describe-cluster --name ${CLUSTERNAME} 
             kubectl version --short
             eksctl version
       - run:
-          name: Configure OIDC for $CLUSTERNAME
+          name: Configure OIDC for cluster
           command: |
-            oidc_id=$(aws eks describe-cluster --name ${CLUSTERNAME}S --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f 5)
-            if [ $oidc_id != "" ]; then      
+            oidc_id=$(aws eks describe-cluster --name ${CLUSTERNAME} --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f 5)
+            if [ $oidc_id == "" ]; then 
             	eksctl utils associate-iam-oidc-provider --cluster $CLUSTERNAME --approve
             fi
       - run:
-        name: Install AWS Load Balancer Controller add-on
-        command: |
-            curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.3/docs/install/iam_policy.json						
-            aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
-            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
-            eksctl create iamserviceaccount --cluster=eks-cluster --namespace=kube-system --name=aws-load-balancer-controller \
-            --role-name "AmazonEKSLoadBalancerControllerRole" \
-            --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve
-            
+          name: Install AWS Load Balancer Controller add-on
+          command: |
+            # export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+            # IAMPolicyExist=$(aws iam get-policy --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy  --query 'Policy.PolicyName' --output text || echo "none")
+            # if [ IAMPolicyExist != "AWSLoadBalancerControllerIAMPolicy" ]; then
+            #  curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.3/docs/install/iam_policy.json						
+            #  aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
+            #  eksctl create iamserviceaccount --cluster=$CLUSTERNAME --namespace=kube-system --name=aws-load-balancer-controller \
+            #  --role-name "AmazonEKSLoadBalancerControllerRole" \
+            #  --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve
+            # fi
+              
             helm repo add eks https://aws.github.io/eks-charts
             helm repo update
-            AWS_REGION=$(aws configure get region)
+            # AWS_REGION=$(aws configure get region)
             AWS_ECR_ACCOUNT_URL="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"  
             kubectl apply \
             		--validate=false \
