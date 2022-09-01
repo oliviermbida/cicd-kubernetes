@@ -547,7 +547,7 @@ jobs:
             kubectl get ingress/notebook-${WORKFLOW_ID}            
             kubectl delete deployment/notebook-${OLD_WORKFLOW_ID}
             kubectl delete svc notebook-${OLD_WORKFLOW_ID}
-	        condition: on_fail           
+          condition: on_fail           
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
