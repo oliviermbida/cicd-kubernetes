@@ -416,6 +416,7 @@ jobs:
             DOCKERHUB_PASSWORD=$(aws ssm get-parameter \
             --name /aws/reference/secretsmanager/dockerhub \
             --with-decryption --output text --query "Parameter.Value" | jq -r ."password") 
+            kubectl describe secrets/dockerhub || \
             kubectl create secret docker-registry dockerhub \
             --docker-server=docker.io \
             --docker-username=$DOCKERHUB_USERNAME \
