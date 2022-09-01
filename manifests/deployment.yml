@@ -1,0 +1,41 @@
+--- 
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  labels: 
+    app: "notebook-${WORKFLOW_ID}"
+  name: "notebook-${WORKFLOW_ID}"
+spec: 
+  replicas: 2
+  selector: 
+    matchLabels: 
+      app: "notebook-${WORKFLOW_ID}"
+  strategy: 
+    type: Recreate
+  template: 
+    metadata: 
+      labels: 
+        app: "notebook-${WORKFLOW_ID}"
+    spec:
+      imagePullSecrets:
+      - name: dockerhub
+      containers:
+      - name: "notebook-${WORKFLOW_ID}"
+        image: ${DOCKERHUB_USERNAME}/notebook:${WORKFLOW_ID}
+        ports:
+          - name: http
+            containerPort: 3000
+            protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DB_HOST
+          value: ""
+        - name: DB_PORT
+          value: ""
+        - name: DB_SCHEMA
+          value: ""
+        - name: DB_USER
+          value: ""
+        - name: DB_PASSWORD
+          value: ""

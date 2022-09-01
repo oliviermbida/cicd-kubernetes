@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "notebook-${WORKFLOW_ID}"
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/actions.update: |
+      {
+        "type":"forward",
+        "forwardConfig":{
+          "targetGroups":[
+            {
+              "serviceName":"notebook-${WORKFLOW_ID}",
+              "servicePort":"80",
+              "weight":100
+            }
+          ]
+        }
+      }
+  labels:
+    app: notebook-${WORKFLOW_ID}
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: update
+                port:
+                  name: use-annotation
+
+
