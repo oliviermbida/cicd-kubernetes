@@ -407,9 +407,9 @@ jobs:
           command: |
             aws eks update-kubeconfig --name ${CLUSTERNAME}
             # aws eks describe-cluster --name ${CLUSTERNAME} 	
-     	- run: 
-     			name: Configure dockerhub secrets
-     			command: |
+      - run: 
+          name: Configure dockerhub secrets
+          command: |
             DOCKERHUB_USERNAME=$(aws ssm get-parameter \
             --name /aws/reference/secretsmanager/dockerhub \
             --with-decryption --output text --query "Parameter.Value" | jq -r ."username")
@@ -421,8 +421,8 @@ jobs:
             --docker-username=$DOCKERHUB_USERNAME \
             --docker-password=$DOCKERHUB_PASSWORD								
       - run:
-      		name: Deploy App environment to cluster
-      		command: |
+          name: Deploy App environment to cluster
+          command: |
             # Set environment variables
             export DOCKERHUB_USERNAME=$(aws ssm get-parameter \
             --name /aws/reference/secretsmanager/dockerhub \
