@@ -9,8 +9,6 @@ Commit build triggers:
 
 Trigger Circleci: `[skip azp][Circleci]`
 
-Trigger AWS CodeBuild: `[skip azp][CodeBuild]`
-
 Default: Azure CI pipeline
 
 Skip all CI build: `[skip azp]`
@@ -63,5 +61,25 @@ Manually verify format of Makefile:
 
 It shows the presence of tabs with ^I and line endings with $.
 Each line of instructions should start with ^I and end with $.
+
+# Continuous Deployment (CD)
+-----------------------------------
+
+Prerequisites:
+
+For discovery.
+
+Public Subnets Tags:
+
+kubernetes.io/cluster/eks-cluster : shared or owned
+
+kubernetes.io/role/elb : 1
+
+`scripts/deploy_rds.sh` : postgres database used to test nodejs production environment.
+
+`kubectl exec $(kubectl get pod -l app=notebook-acbd4e1 -o name | head -n 1) -- env`
+
+![Envs inside pod](images/Production_env_inside_pod.png)
+
 
 
