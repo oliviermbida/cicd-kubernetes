@@ -79,7 +79,7 @@ kubernetes.io/role/elb : 1
 
 `kubectl exec $(kubectl get pod -l app=notebook-acbd4e1 -o name | head -n 1) -- env`
 
-![Envs inside pod](images/Production_env_inside_pod.png)
+![Envs inside pod](docs/images/Production_env_inside_pod.png)
 
 
 
