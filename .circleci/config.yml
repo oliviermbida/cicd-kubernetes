@@ -440,7 +440,7 @@ jobs:
       - run:
           name: Ensure prod environment exist
           command: |
-            kubectl exec -it -c notebook $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- npm run ping								
+            kubectl exec -it $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- npm run test							
       - run:
           name: Rollback deployment 
           command: |
