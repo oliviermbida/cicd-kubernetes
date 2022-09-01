@@ -507,7 +507,7 @@ jobs:
             aws eks update-kubeconfig --name ${CLUSTERNAME}
             # aws eks describe-cluster --name ${CLUSTERNAME}
             kubectl version --short
-			- run:
+      - run:
 					name: Promotion notebook
 					command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
@@ -516,7 +516,7 @@ jobs:
             envsubst < manifests/ingress.yml | tee ingress.yml > /dev/null					
             kubectl apply -f ./ingress.yml	
             kubectl get ingress/notebook-${WORKFLOW_ID}
-			- run:
+      - run:
 					name: Smoke Test notebook
 					command: |	
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
@@ -534,7 +534,7 @@ jobs:
               # trigger rollback
               exit 1
             fi            
-			- run:
+      - run:
 					name: Rollback promotion
 					command: |
             # swap workflow ids to revert ingress.yml
