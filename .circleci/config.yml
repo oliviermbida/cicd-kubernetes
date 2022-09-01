@@ -451,7 +451,7 @@ jobs:
             # Deploy latest version of App
             envsubst < manifests/deployment.yml | tee deployment.yml > /dev/null
             kubectl apply -f ./deployment.yml
-            kubectl rollout status -f deployment.yml --timeout=10s | grep -oh 'deployment "notebook-£{WORKFLOW_ID}" successfully rolled out' || echo exit 1 
+            # kubectl rollout status -f deployment.yml --timeout=10s | grep -oh 'deployment "notebook-£{WORKFLOW_ID}" successfully rolled out' || echo exit 1 
             kubectl get pods -l app=notebook-${WORKFLOW_ID} 
             envsubst < manifests/service.yml | tee service.yml > /dev/null
             kubectl apply -f ./service.yml 
