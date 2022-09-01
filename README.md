@@ -71,9 +71,9 @@ For discovery.
 
 Public Subnets Tags:
 
-kubernetes.io/cluster/eks-cluster : shared or owned
+`kubernetes.io/cluster/eks-cluster : shared or owned`
 
-kubernetes.io/role/elb : 1
+`kubernetes.io/role/elb : 1`
 
 `scripts/deploy_rds.sh` : postgres database used to test nodejs production environment.
 
