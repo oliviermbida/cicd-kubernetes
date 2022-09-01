@@ -14,6 +14,12 @@ parameters:
   run_deploy_app:
     type: boolean
     default: true  
+  run_update:
+    type: boolean
+    default: true  
+  oldWorkflowID:
+    type: string
+    default: "eb24eef"
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
   check_job:
@@ -454,7 +460,7 @@ jobs:
           name: Ensure prod environment exist
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
-            kubectl exec -it $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- npm run test							
+            kubectl exec -it $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- npm run test || true							
       - run:
           name: Rollback deployment 
           command: |
@@ -462,7 +468,86 @@ jobs:
             echo "Notebook environment deployment failed"
             kubectl delete deployment/notebook-${WORKFLOW_ID} || true
             kubectl delete svc notebook-${WORKFLOW_ID} || true
-          condition: on_fail            
+          condition: on_fail
+          
+  update:
+    docker:
+      - image: cimg/base:2020.05
+    steps:
+      - check_job:
+          start_job: <<pipeline.parameters.run_update>>
+      - checkout
+      - install_aws      
+      - configure_aws:
+          access_key_id: $AWS_ADMIN_ACCESS_KEY_ID
+          secret_access_key: $AWS_ADMIN_SECRET_ACCESS_KEY
+      - run:
+          name: Install dependencies
+          command: |
+            # curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            # curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+            # echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check >/dev/null 2>&1 || \
+            curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
+             | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+            eksctl version
+            curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+            sudo apt-get install apt-transport-https --yes
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+            sudo apt-get update
+            sudo apt-get install helm
+            helm version
+            sudo apt install -y python3-pip
+            pip3 install envsubst              
+      - run:
+          name: Configure kubectl
+          command: |
+            aws eks update-kubeconfig --name ${CLUSTERNAME}
+            # aws eks describe-cluster --name ${CLUSTERNAME}
+            kubectl version --short
+			- run:
+					name: Promotion notebook
+					command: |
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
+            export OLD_WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
+            # Deploy latest version of App
+            envsubst < manifests/ingress.yml | tee ingress.yml > /dev/null					
+            kubectl apply -f ./ingress.yml	
+            kubectl get ingress/notebook-${WORKFLOW_ID}
+			- run:
+					name: Smoke Test notebook
+					command: |	
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
+            ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -o json | jq ".status.loadBalancer.ingress[0].hostname")
+            curl -S $URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
+            echo "Frontend smoke test"
+            GREEN='\033[0;32m'       
+            RED='\033[0;31m'        
+            NC='\033[0m' 
+            TEST_PASSED=$(cat /tmp/FRONTEND_SMOKE_TEST)
+            if [[ $TEST_PASSED == "Welcome to Express" ]]; then
+              printf "TEST: ${GREEN}PASSED${NC}\n"
+            else
+              printf "TEST: ${RED}FAILED${NC}\n"
+              # trigger rollback
+              exit 1
+            fi            
+			- run:
+					name: Rollback promotion
+					command: |
+            # swap workflow ids to revert ingress.yml
+            export WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
+            export OLD_WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
+            echo "Workflow ID ${OLD_WORKFLOW_ID} environment deployment failed"
+            kubectl delete -f ./ingress.yml
+            envsubst < manifests/ingress.yml | tee ingress.yml > /dev/null					
+            kubectl apply -f ./ingress.yml	
+            kubectl get ingress/notebook-${WORKFLOW_ID}            
+            kubectl delete deployment/notebook-${OLD_WORKFLOW_ID}
+            kubectl delete svc notebook-${OLD_WORKFLOW_ID}
+					condition: on_fail           
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
@@ -504,4 +589,16 @@ workflows:
             - org-global
             - aws-context
           filters:
-            <<: *filters-production            
+            <<: *filters-production    
+      - approve-update:
+          type: approval
+          requires: 
+            - deploy-app       
+      - update:
+          requires: 
+            - approve-update             
+          context:
+            - org-global
+            - aws-context
+          filters:
+            <<: *filters-production              

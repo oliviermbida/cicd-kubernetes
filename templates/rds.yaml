@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation Sample Template for creating an Amazon RDS DB 
+Parameters:
+  DBClass:
+    Default: db.t3.small
+    Description: DB instance class
+    Type: String
+    ConstraintDescription: Must select a valid DB instance type.
+  DBAllocatedStorage:
+    Default: '20'
+    Description: The size of the database (GiB)
+    Type: Number
+    MinValue: '20'
+    MaxValue: '65536'
+    ConstraintDescription: must be between 20 and 65536 GiB.
+Resources:
+  backendDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: '{{resolve:secretsmanager:UdaPeopleDB:SecretString:dbname}}'
+      Engine: postgres
+      EngineVersion: "12.10"
+      MasterUsername: '{{resolve:secretsmanager:UdaPeopleDB:SecretString:username}}'
+      DBInstanceClass:
+        Ref: DBClass
+      DBSecurityGroups:
+      - Ref: DBSecurityGroup
+      AllocatedStorage:
+        Ref: DBAllocatedStorage
+      MasterUserPassword: '{{resolve:secretsmanager:UdaPeopleDB:SecretString:password}}'
+      PubliclyAccessible: true
+      DBInstanceIdentifier: 'backendDB'
+      Tags:
+        - Key: Name
+          Value: 'backendDB'
+# RDS Security Group
+  DBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      DBSecurityGroupIngress:
+        EC2SecurityGroupName: 'default'
+      GroupDescription: DB Security Group

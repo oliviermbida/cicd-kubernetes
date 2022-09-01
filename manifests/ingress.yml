@@ -16,7 +16,12 @@ metadata:
               "serviceName":"notebook-${WORKFLOW_ID}",
               "servicePort":"80",
               "weight":100
-            }
+            },
+           {
+             "serviceName":"notebook-${OLD_WORKFLOW_ID}",
+             "servicePort":"80",
+             "weight":0
+           }            
           ]
         }
       }
