@@ -447,7 +447,7 @@ jobs:
             echo "Notebook environment deployment failed"
             kubectl delete deployment/notebook-${WORKFLOW_ID} || true
             kubectl delete svc notebook-${WORKFLOW_ID} || true
-        condition: on_fail            
+          condition: on_fail            
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
