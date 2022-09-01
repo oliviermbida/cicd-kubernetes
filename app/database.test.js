@@ -1,6 +1,7 @@
 const db = require('./database');
 /// @Fail Remove to pass tests
 // var expect = require('expect');  
+jest.setTimeout(30000);
 
 beforeAll(async () => {
     await db.sequelize.sync({ force: true });
