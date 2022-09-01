@@ -508,8 +508,8 @@ jobs:
             # aws eks describe-cluster --name ${CLUSTERNAME}
             kubectl version --short
       - run:
-					name: Promotion notebook
-					command: |
+          name: Promotion notebook
+          command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
             export OLD_WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
             # Deploy latest version of App
@@ -517,8 +517,8 @@ jobs:
             kubectl apply -f ./ingress.yml	
             kubectl get ingress/notebook-${WORKFLOW_ID}
       - run:
-					name: Smoke Test notebook
-					command: |	
+          name: Smoke Test notebook
+          command: |	
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
             ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -o json | jq ".status.loadBalancer.ingress[0].hostname")
             curl -S $URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
@@ -535,8 +535,8 @@ jobs:
               exit 1
             fi            
       - run:
-					name: Rollback promotion
-					command: |
+          name: Rollback promotion
+          command: |
             # swap workflow ids to revert ingress.yml
             export WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
             export OLD_WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
@@ -547,7 +547,7 @@ jobs:
             kubectl get ingress/notebook-${WORKFLOW_ID}            
             kubectl delete deployment/notebook-${OLD_WORKFLOW_ID}
             kubectl delete svc notebook-${OLD_WORKFLOW_ID}
-					condition: on_fail           
+	        condition: on_fail           
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
