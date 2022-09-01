@@ -30,12 +30,12 @@ spec:
         - name: NODE_ENV
           value: "production"
         - name: DB_HOST
-          value: ""
+          value: "$DB_HOST"
         - name: DB_PORT
-          value: ""
+          value: "$DB_PORT"
         - name: DB_SCHEMA
-          value: ""
+          value: "$DB_SCHEMA"
         - name: DB_USER
-          value: ""
+          value: "$DB_USER"
         - name: DB_PASSWORD
-          value: ""
+          value: "$DB_PASSWORD"
