@@ -518,7 +518,7 @@ jobs:
             kubectl get ingress/notebook-${WORKFLOW_ID}
       - run:
           name: Smoke Test notebook
-          command: |	
+          command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
             ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -o json | jq ".status.loadBalancer.ingress[0].hostname")
             curl -S $URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
