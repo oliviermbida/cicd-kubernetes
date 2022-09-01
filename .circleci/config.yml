@@ -425,6 +425,19 @@ jobs:
           name: Deploy App environment to cluster
           command: |
             # Set environment variables
+            export DB_USER=$(aws ssm get-parameter \
+                --name /aws/reference/secretsmanager/UdaPeopleDB \
+                --with-decryption --output text --query "Parameter.Value" | jq -r ."username")
+            export DB_PASSWORD=$(aws ssm get-parameter \
+                --name /aws/reference/secretsmanager/UdaPeopleDB \
+                --with-decryption --output text --query "Parameter.Value" | jq -r ."password")
+            export DB_SCHEMA="postgres"
+            export DB_PORT=$(aws rds describe-db-instances \
+                --db-instance-identifier backendDB \
+                --output text --query "DBInstances[*].Endpoint.Port")
+            export DB_HOST=$(aws rds describe-db-instances \
+                --db-instance-identifier backendDB \
+                --output text --query "DBInstances[*].Endpoint.Address")              
             export DOCKERHUB_USERNAME=$(aws ssm get-parameter \
             --name /aws/reference/secretsmanager/dockerhub \
             --with-decryption --output text --query "Parameter.Value" | jq -r ."username")      		
