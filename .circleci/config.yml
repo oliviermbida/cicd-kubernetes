@@ -7,7 +7,7 @@ parameters:
     default: true
   run_deploy_infrastructure:
     type: boolean
-    default: false  
+    default: true  
   run_configure_infrastructure:
     type: boolean
     default: true  
@@ -259,7 +259,7 @@ jobs:
           name: Configure kubectl
           command: |
             aws eks update-kubeconfig --name $CLUSTERNAME
-            aws eks describe-cluster --name $CLUSTERNAME
+            # aws eks describe-cluster --name $CLUSTERNAME
       - run:
           name: Test KubeConfig
           command: |
@@ -270,7 +270,7 @@ jobs:
           name: Cleanup 
           command: |
             # cleanup
-            rm -rf ~/.kube
+            rm -rf ~/.kube 
             rm -f $AWS_SHARED_CREDENTIALS_FILE
             rm -f $AWS_CONFIG_FILE            
       - run:
@@ -334,14 +334,14 @@ jobs:
       - run:
           name: Install AWS Load Balancer Controller add-on
           command: |
-            # export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+            export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
             # IAMPolicyExist=$(aws iam get-policy --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy  --query 'Policy.PolicyName' --output text || echo "none")
             # if [ IAMPolicyExist != "AWSLoadBalancerControllerIAMPolicy" ]; then
             #  curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.3/docs/install/iam_policy.json						
             #  aws iam create-policy --policy-name AWSLoadBalancerControllerIAMPolicy --policy-document file://iam_policy.json
-            #  eksctl create iamserviceaccount --cluster=$CLUSTERNAME --namespace=kube-system --name=aws-load-balancer-controller \
-            #  --role-name "AmazonEKSLoadBalancerControllerRole" \
-            #  --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve
+            eksctl create iamserviceaccount --cluster=$CLUSTERNAME --namespace=kube-system --name=aws-load-balancer-controller \
+              --role-name "AmazonEKSLoadBalancerControllerRole" \
+              --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve
             # fi
               
             helm repo add eks https://aws.github.io/eks-charts
@@ -359,7 +359,7 @@ jobs:
           name: Rollback Load balancer
           when: on_fail
           command: |
-            helm uninstall -n kube-system aws-load-balancer-controller
+            helm uninstall -n kube-system aws-load-balancer-controller > /dev/null
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
