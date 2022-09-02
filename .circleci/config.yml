@@ -594,7 +594,7 @@ jobs:
               kubectl apply -f ./ingress-old.yml	--namespace notebook-${OLD_WORKFLOW_ID}
               kubectl get ingress/notebook-${OLD_WORKFLOW_ID} --namespace notebook-${OLD_WORKFLOW_ID}
             fi
-            kubectl delete --namespace notebook-${WORKFLOW_ID}
+            kubectl delete namespace notebook-${WORKFLOW_ID}
           condition: on_fail
           
   cleanup:
