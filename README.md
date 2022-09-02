@@ -77,9 +77,49 @@ Public Subnets Tags:
 
 `scripts/deploy_rds.sh` : postgres database used to test nodejs production environment.
 
+After deployment ensure production environment exist:
+
+`manifests/deployment.yml` :
+
+        env:
+        
+        - name: NODE_ENV
+        
+          value: "production"
+          
+        - name: DB_HOST
+        
+          value: "$DB_HOST"
+          
+        - name: DB_PORT
+        
+          value: "$DB_PORT"
+          
+        - name: DB_SCHEMA
+        
+          value: "$DB_SCHEMA"
+          
+        - name: DB_USER
+        
+          value: "$DB_USER"
+          
+        - name: DB_PASSWORD
+        
+          value: "$DB_PASSWORD"
+
+
 `kubectl exec $(kubectl get pod -l app=notebook-acbd4e1 -o name | head -n 1) -- env`
 
 ![Envs inside pod](docs/images/Production_env_inside_pod.png)
 
+
+
+# Miscellaneous
+
+You may need to delete several AWS S3 buckets :
+
+`aws s3 ls | cut -d" " -f 3 | xargs -I{} aws s3 rb s3://{} --force`
+
+Note: This will delete all buckets in the aws cli configured user account.
 
 
