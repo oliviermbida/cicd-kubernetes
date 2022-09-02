@@ -477,9 +477,8 @@ jobs:
           name: Ensure prod environment exist
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
-            kubectl config set-context --current --namespace=notebook-${WORKFLOW_ID}
             # kubectl exec -it $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- npm run test || true	
-            kubectl exec $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- env
+            # kubectl exec $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name --namespace notebook-${WORKFLOW_ID} | head -n 1) --namespace notebook-${WORKFLOW_ID} -- env
       - run:
           name: Rollback deployment 
           command: |
