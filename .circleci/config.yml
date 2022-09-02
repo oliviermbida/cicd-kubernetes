@@ -570,6 +570,10 @@ jobs:
               exit 1
             fi
       - run:
+          name: Ensure Load Balancer Ingress switched
+          command: |
+            kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
+      - run:
           name: store artifacts
           command: |
             # Store workflow ID for next build
@@ -582,7 +586,7 @@ jobs:
           name: Rollback promotion
           command: |
             # swap workflow ids to revert ingress.yml
-            export OLD_WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
+            export OLD_WORKFLOW_ID=<<pipeline.parameters.oldWorkflowID>>
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
             echo "Workflow ID ${WORKFLOW_ID} environment deployment failed"
             if [ ${OLD_WORKFLOW_ID} != "" ]; then
