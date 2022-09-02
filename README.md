@@ -51,7 +51,6 @@ CD job for promotion to the latest build using the current tagged Workflow ID `n
 
 In case of failure rollback to `notebook-${OLD_WORKFLOW_ID}` using `manifests/ingress-old.yml` applied to the load balancer.
 
-Azure pipeline:
 
 # Continuous Integration (CI)
 -----------------------------------
@@ -67,6 +66,28 @@ Skip all CI build: `[skip azp]`
 # [Circleci]
 
 `.circleci/config.yml`
+
+This step is used to store the previous Workflow ID:
+
+      - run:
+      
+          name: store artifacts 
+          
+          command: |
+          
+            # Store workflow ID for next build
+            
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
+            
+            mkdir -p /tmp/artifacts
+            
+            echo "${WORKFLOW_ID}" > /tmp/artifacts/OLD_WORKFLOW_ID 
+            
+      - store_artifacts:
+      
+          path: /tmp/artifacts     
+          
+  Which can then be retrieved by the current Workflow to perform the load balancer ingress switch and cleanup.        
 
 # [AzureBuild]
 
@@ -191,6 +212,12 @@ Note: using the same aws cli user credentials when deploying the EKS cluster abo
 
 `kubectl apply -f manifests/ingress.yml --namespace notebook-${OLD_WORKFLOW_ID}`
 
+Wait 5 minutes for switch to apply:
+
+`ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq -r ".status.loadBalancer.ingress[0].hostname")`
+
+`timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' || false`
+
 In case of failure rollback using `manifests/ingress-old.yml`
 
 # 6. Cleanup
@@ -210,3 +237,6 @@ You may need to delete several AWS S3 buckets :
 Note: This will delete all buckets in the aws cli configured user account.
 
 
+# Cleanup
+
+Cleanup AWS resources created with `scripts/deploy_eks` and `scripts/deploy_rds`
