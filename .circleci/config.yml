@@ -7,10 +7,10 @@ parameters:
     default: true
   run_deploy_infrastructure:
     type: boolean
-    default: false  
+    default: true  
   run_configure_infrastructure:
     type: boolean
-    default: false  
+    default: true  
   run_deploy_app:
     type: boolean
     default: true  
@@ -19,7 +19,7 @@ parameters:
     default: true  
   oldWorkflowID:
     type: string
-    default: "eb24eef"
+    default: ""
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
   check_job:
@@ -339,7 +339,7 @@ jobs:
             kubectl version --short
             eksctl version
       - run:
-          name: Configure OIDC for cluster
+          name: Configure OIDC provider & IAM role 
           command: |
             oidc_id=$(aws eks describe-cluster --name ${CLUSTERNAME} --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f 5)
             if [ $oidc_id != "" ]; then 
@@ -347,12 +347,12 @@ jobs:
             else
               exit 1
             fi
+            eksctl create iamserviceaccount --cluster=$CLUSTERNAME --namespace=kube-system --name=aws-load-balancer-controller \
+              --role-name "AmazonEKSLoadBalancerControllerRole" \
+              --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve            
       - run:
           name: Install AWS Load Balancer Controller add-on
           command: |
-            eksctl create iamserviceaccount --cluster=$CLUSTERNAME --namespace=kube-system --name=aws-load-balancer-controller \
-              --role-name "AmazonEKSLoadBalancerControllerRole" \
-              --attach-policy-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy --approve
             kubectl apply \
             --validate=false \
             -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
@@ -375,6 +375,7 @@ jobs:
           when: on_fail
           command: |
             kubectl delete deployment -n kube-system aws-load-balancer-controller || true
+            kubectl delete -f v2_4_3_ingclass.yaml || true
 #  
   deploy-app:
     docker:
@@ -428,6 +429,17 @@ jobs:
             --docker-username=$DOCKERHUB_USERNAME \
             --docker-password=$DOCKERHUB_PASSWORD								
       - run:
+          name: Get old workflow ID
+          command: |
+            OLD_BUILD_NUM=$( echo $(( CIRCLE_BUILD_NUM - 1 )) ) 
+            artifacts=$(curl -X GET "https://circleci.com/api/v2/project/github/oliviermbida/cicd-kubernetes/$OLD_BUILD_NUM/artifacts" \
+            -H "Accept: application/json" \
+            -u "$CIRCLE_TOKEN_API:") || true
+            echo "read -f '' OLD_WORKFLOW_ID \<< 'EOF_ARTIFACTS'" >> $BASH_ENV
+            echo "$artifacts" >> $BASH_ENV
+            echo "EOF_ARTIFACTS" >> $BASH_ENV
+            echo $OLD_WORKFLOW_ID
+      - run:
           name: Deploy App environment to cluster
           command: |
             # Set environment variables
@@ -448,27 +460,33 @@ jobs:
             --name /aws/reference/secretsmanager/dockerhub \
             --with-decryption --output text --query "Parameter.Value" | jq -r ."username")      		
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
+            #
+            # Setup production environment
+            kubectl create namespace "notebook-${WORKFLOW_ID}"
+            kubectl get namespaces --show-labels   
+            #
             # Deploy latest version of App
             envsubst < manifests/deployment.yml | tee deployment.yml > /dev/null
-            kubectl apply -f ./deployment.yml
+            kubectl apply --namespace notebook-${WORKFLOW_ID} -f ./deployment.yml
             # kubectl rollout status -f deployment.yml --timeout=10s | grep -oh 'deployment "notebook-£{WORKFLOW_ID}" successfully rolled out' || echo exit 1 
-            kubectl get pods -l app=notebook-${WORKFLOW_ID} 
+            kubectl get pods -l app=notebook-${WORKFLOW_ID} --namespace notebook-${WORKFLOW_ID} 
             envsubst < manifests/service.yml | tee service.yml > /dev/null
-            kubectl apply -f ./service.yml 
-            kubectl describe service notebook-${WORKFLOW_ID}
+            kubectl apply -f ./service.yml --namespace notebook-${WORKFLOW_ID} 
+            kubectl describe service notebook-${WORKFLOW_ID} --namespace notebook-${WORKFLOW_ID}
       - run:
           name: Ensure prod environment exist
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
             # kubectl exec -it $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- npm run test || true	
-            kubectl exec $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name | head -n 1) -- env
+            kubectl exec $(kubectl get pod -l app=notebook-${WORKFLOW_ID} -o name -n notebook-${WORKFLOW_ID} | head -n 1) -- env
       - run:
           name: Rollback deployment 
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
             echo "Notebook environment deployment failed"
-            kubectl delete deployment/notebook-${WORKFLOW_ID} || true
-            kubectl delete svc notebook-${WORKFLOW_ID} || true
+            kubectl delete namespace notebook-${WORKFLOW_ID}
+            #kubectl delete deployment/notebook-${WORKFLOW_ID} || true
+            #kubectl delete svc notebook-${WORKFLOW_ID} || true
           condition: on_fail
           
   update:
@@ -515,13 +533,16 @@ jobs:
             export OLD_WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
             # Deploy latest version of App
             envsubst < manifests/ingress.yml | tee ingress.yml > /dev/null					
-            kubectl apply -f ./ingress.yml	
-            kubectl get ingress/notebook-${WORKFLOW_ID}
+            kubectl apply -f ./ingress.yml	--namespace notebook-${WORKFLOW_ID}
+            kubectl get ingress/notebook-${WORKFLOW_ID} --namespace notebook-${WORKFLOW_ID}
+            if [ ${OLD_WORKFLOW_ID} != "" ]; then
+              kubectl delete ingress/notebook-${OLD_WORKFLOW_ID} --namespace notebook-${OLD_WORKFLOW_ID}
+            fi
       - run:
           name: Smoke Test notebook
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
-            ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -o json | jq ".status.loadBalancer.ingress[0].hostname")
+            ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq ".status.loadBalancer.ingress[0].hostname")
             curl -S $URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
             echo "Frontend smoke test"
             GREEN='\033[0;32m'       
@@ -534,20 +555,28 @@ jobs:
               printf "TEST: ${RED}FAILED${NC}\n"
               # trigger rollback
               exit 1
-            fi            
+            fi
+      - run:
+          name: store artifacts
+          command: |
+            # Store workflow ID for next build
+            mkdir -p /tmp/artifacts
+            echo "${WORKFLOW_ID}" > /tmp/artifacts/OLD_WORKFLOW_ID          
+      - store_artifacts:
+          path: /tmp/artifacts            
       - run:
           name: Rollback promotion
           command: |
             # swap workflow ids to revert ingress.yml
-            export WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
-            export OLD_WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
-            echo "Workflow ID ${OLD_WORKFLOW_ID} environment deployment failed"
-            kubectl delete -f ./ingress.yml
-            envsubst < manifests/ingress.yml | tee ingress.yml > /dev/null					
-            kubectl apply -f ./ingress.yml	
-            kubectl get ingress/notebook-${WORKFLOW_ID}            
-            kubectl delete deployment/notebook-${OLD_WORKFLOW_ID}
-            kubectl delete svc notebook-${OLD_WORKFLOW_ID}
+            export OLD_WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
+            echo "Workflow ID ${WORKFLOW_ID} environment deployment failed"
+            if [ ${OLD_WORKFLOW_ID} != "" ]; then
+              envsubst < manifests/ingress-old.yml | tee ingress-old.yml > /dev/null					
+              kubectl apply -f ./ingress-old.yml	--namespace notebook-${OLD_WORKFLOW_ID}
+              kubectl get ingress/notebook-${OLD_WORKFLOW_ID} --namespace notebook-${OLD_WORKFLOW_ID}
+            fi
+            kubectl delete --namespace notebook-${WORKFLOW_ID}
           condition: on_fail           
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
