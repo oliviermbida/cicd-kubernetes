@@ -17,6 +17,9 @@ parameters:
   run_update:
     type: boolean
     default: true  
+  run_cleanup:
+    type: boolean
+    default: true      
   oldWorkflowID:
     type: string
     default: ""
@@ -539,12 +542,16 @@ jobs:
               kubectl delete ingress/notebook-${OLD_WORKFLOW_ID} --namespace notebook-${OLD_WORKFLOW_ID}
             fi
       - run:
+          name: Ensure Load Balancer Ingress switched
+          command: |
+            kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
+      - run:
           name: Smoke Test notebook
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
-            ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq ".status.loadBalancer.ingress[0].hostname")
-            curl -S $URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
-            echo "Frontend smoke test"
+            ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq -r ".status.loadBalancer.ingress[0].hostname")
+            curl -S $ALB_URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
+            echo "notebook-${WORKFLOW_ID} smoke test"
             GREEN='\033[0;32m'       
             RED='\033[0;31m'        
             NC='\033[0m' 
@@ -560,6 +567,7 @@ jobs:
           name: store artifacts
           command: |
             # Store workflow ID for next build
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
             mkdir -p /tmp/artifacts
             echo "${WORKFLOW_ID}" > /tmp/artifacts/OLD_WORKFLOW_ID          
       - store_artifacts:
@@ -577,7 +585,58 @@ jobs:
               kubectl get ingress/notebook-${OLD_WORKFLOW_ID} --namespace notebook-${OLD_WORKFLOW_ID}
             fi
             kubectl delete --namespace notebook-${WORKFLOW_ID}
-          condition: on_fail           
+          condition: on_fail
+          
+  cleanup:
+    docker:
+      - image: cimg/base:2020.05
+    steps:
+      - check_job:
+          start_job: <<pipeline.parameters.run_cleanup>>
+      - checkout
+      - install_aws      
+      - configure_aws:
+          access_key_id: $AWS_ADMIN_ACCESS_KEY_ID
+          secret_access_key: $AWS_ADMIN_SECRET_ACCESS_KEY
+      - run:
+          name: Install dependencies
+          command: |
+            # curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            # curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+            # echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check >/dev/null 2>&1 || \
+            curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
+             | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+            eksctl version
+            curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+            sudo apt-get install apt-transport-https --yes
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+            sudo apt-get update
+            sudo apt-get install helm
+            helm version
+            sudo apt install -y python3-pip
+            pip3 install envsubst              
+      - run:
+          name: Configure kubectl
+          command: |
+            aws eks update-kubeconfig --name ${CLUSTERNAME}
+            # aws eks describe-cluster --name ${CLUSTERNAME}
+            kubectl version --short
+      - run:
+          name: Cleanup old deployment environment
+          command: |
+            export OLD_WORKFLOW_ID=<<pipeline.parameters.oldWorkflowID>>
+            if [ ${OLD_WORKFLOW_ID} != "" ]; then
+              kubectl delete namespace notebook-${OLD_WORKFLOW_ID} 
+            fi
+      - run:
+          name: Ensure current deployment exist
+          command: |
+            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
+            kubectl get pods --namespace=notebook-${WORKFLOW_ID}
+            kubectl get ingress/notebook-${WORKFLOW_ID} --namespace=notebook-${WORKFLOW_ID}
 # build-app job is run on tags since the docker image pulled in production is tagged with same Workflow ID             
 workflows:
   default:
@@ -627,6 +686,14 @@ workflows:
       - update:
           requires: 
             - approve-update             
+          context:
+            - org-global
+            - aws-context
+          filters:
+            <<: *filters-production    
+      - cleanup:
+          requires: 
+            - update             
           context:
             - org-global
             - aws-context
