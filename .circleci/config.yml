@@ -484,7 +484,7 @@ jobs:
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
             echo "Notebook environment deployment failed"
-            kubectl delete namespace notebook-${WORKFLOW_ID} || true
+            #kubectl delete namespace notebook-${WORKFLOW_ID} || true
             #kubectl delete deployment/notebook-${WORKFLOW_ID} || true
             #kubectl delete svc notebook-${WORKFLOW_ID} || true
           condition: on_fail
@@ -530,7 +530,7 @@ jobs:
           name: Promotion notebook
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
-            export OLD_WORKFLOW_ID=${<<pipeline.parameters.oldWorkflowID>>}
+            export OLD_WORKFLOW_ID=<<pipeline.parameters.oldWorkflowID>>
             # Deploy latest version of App
             envsubst < manifests/ingress.yml | tee ingress.yml > /dev/null					
             kubectl apply -f ./ingress.yml	--namespace notebook-${WORKFLOW_ID}
