@@ -17,9 +17,9 @@ Promotion to the Green environment happens when an ingress is applied to the loa
 
 Circleci pipeline:
 
-`build-app` : CI job dockerrize the nodejs App and push to Dockerhub registry after passing tests
+- `build-app` : CI job dockerize the nodejs App and push to Dockerhub registry after passing tests
 
-`deploy-infrastructure` : 
+- `deploy-infrastructure` : 
 
 CD deployment environment job to setup AWS EKS cluster infrastructure using AWS cloudformation `templates/cluster.yaml`
 
@@ -27,7 +27,7 @@ If the AWS EKS cluster is fully deployed, disable this job with Circleci pipelin
 
 This Circleci job is equivalent to setting up the `deployment environments` in the `Azure Devops` pipeline.
 
-`configure-infrastructure` : 
+- `configure-infrastructure` : 
 
 CD deployment environment job to configure AWS EKS cluster environment and install `aws-load-balancer-controller` add-on.
 
@@ -35,7 +35,7 @@ CD deployment environment job to configure AWS EKS cluster environment and insta
 
 If the configuration is fully applied, disable this job with Circleci pipeline parameter `run_configure_infrastructure` set to `false`.
 
-`deploy-app` : 
+- `deploy-app` : 
 
 using `manifests/deployment.yml` and `manifests/service.yml`
 
@@ -43,7 +43,7 @@ CD job to deploy nodejs app named `notebook` to kubernetes cluster using the app
 
 The CI app image was tagged with the Workflow ID to ensure CD is pulling the correct image in the Circleci pipeline.
 
-`update` :
+- `update` :
 
 Using `manifests/ingress.yml` and `manifests/ingress-old.yml`
 
