@@ -7,10 +7,10 @@ parameters:
     default: true
   run_deploy_infrastructure:
     type: boolean
-    default: true  
+    default: false  
   run_configure_infrastructure:
     type: boolean
-    default: true  
+    default: false  
   run_deploy_app:
     type: boolean
     default: true  
