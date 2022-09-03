@@ -233,7 +233,7 @@ Wait 5 minutes for switch to apply:
 
 `ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq -r ".status.loadBalancer.ingress[0].hostname")`
 
-`timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' || false`
+`timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' `
 
 In case of failure rollback using `manifests/ingress-old.yml`
 

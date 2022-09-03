@@ -487,10 +487,10 @@ jobs:
           command: |
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7} 
             echo "Notebook environment deployment failed"
-            #kubectl delete namespace notebook-${WORKFLOW_ID} || true
+            kubectl delete namespace notebook-${WORKFLOW_ID} || true
             #kubectl delete deployment/notebook-${WORKFLOW_ID} || true
             #kubectl delete svc notebook-${WORKFLOW_ID} || true
-          condition: on_fail
+          when: on_fail
           
   update:
     docker:
@@ -555,7 +555,7 @@ jobs:
             export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
             export ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq -r ".status.loadBalancer.ingress[0].hostname")
             # Wait for 5 minutes for new ingress switch to be ready or trigger rollback
-            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' || true
+            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' || false
             curl -S $ALB_URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
             echo "notebook-${WORKFLOW_ID} smoke test"
             GREEN='\033[0;32m'       
@@ -595,7 +595,7 @@ jobs:
               kubectl get ingress/notebook-${OLD_WORKFLOW_ID} --namespace notebook-${OLD_WORKFLOW_ID}
             fi
             kubectl delete namespace notebook-${WORKFLOW_ID}
-          condition: on_fail
+          when: on_fail
           
   cleanup:
     docker:
