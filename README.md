@@ -141,7 +141,7 @@ Each line of instructions should start with ^I and end with $.
 # Continuous Deployment (CD)
 -----------------------------------
 
-The following manual steps and automated by the pipeline.
+The following manual steps are automated by the Circleci pipeline.
 
 Prerequisites:
 
@@ -159,6 +159,12 @@ Public Subnets Tags:
 
 `scripts/deploy_eks.sh`
 
+Next follow the steps to apply `aws-load-balancer-controller` add-on in the link below:
+
+[`aws-load-balancer-controller`](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html)
+
+Note: using the same aws cli credentials used to deploy the cluster in `scripts/deploy_eks.sh`
+
 # 2. KubeConfig
 
 `aws eks update-kubeconfig --name $CLUSTERNAME`
@@ -172,6 +178,12 @@ Note: using the same aws cli user credentials when deploying the EKS cluster abo
 `kubectl apply -f manifests/deployment.yml --namespace notebook-${WORKFLOW_ID}` 
 
 `kubectl apply -f manifests/service.yml --namespace notebook-${WORKFLOW_ID}`
+
+Note: use `envsubst` to populated environment variables
+
+`envsubst < manifests/deployment.yml | tee deployment.yml > /dev/null`
+
+`envsubst < manifests/service.yml | tee service.yml > /dev/null`
 
 # 4. After deployment ensure production environment exist:
 
@@ -203,8 +215,13 @@ Note: using the same aws cli user credentials when deploying the EKS cluster abo
         
           value: "$DB_PASSWORD"
 
+This command will return environment variables inside the pods:
 
 `kubectl exec $(kubectl get pod -l app=notebook-acbd4e1 -o name | head -n 1) -- env`
+
+As you can see below for example the DB_HOST env is set to the AWS RDS postgress launched with 
+`scripts/deploy_rds.sh`
+
 
 ![Envs inside pod](docs/images/Production_env_inside_pod.png)
 
@@ -228,15 +245,15 @@ This namespace contains the following resources which will be removed:
 
 `deployment.yml` , `service.yml` and `ingress-old.yml` for the `OLD_WORKFLOW_ID`
 
-# Miscellaneous
 
-You may need to delete several AWS S3 buckets :
+# Teardown
+
+Cleanup AWS resources created with `scripts/deploy_eks` and `scripts/deploy_rds`
+
+`aws cloudformation delete-stack --stack-name [STACKNAME]`
+
+You may also need to delete several AWS S3 buckets :
 
 `aws s3 ls | cut -d" " -f 3 | xargs -I{} aws s3 rb s3://{} --force`
 
 Note: This will delete all buckets in the aws cli configured user account.
-
-
-# Cleanup
-
-Cleanup AWS resources created with `scripts/deploy_eks` and `scripts/deploy_rds`
