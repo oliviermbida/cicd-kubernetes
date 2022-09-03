@@ -247,6 +247,37 @@ This namespace contains the following resources which will be removed:
 
 `deployment.yml` , `service.yml` and `ingress-old.yml` for the `OLD_WORKFLOW_ID`
 
+# Troubleshoting 
+
+Deleted namespace stuck in `Terminating` state :
+
+Run:
+
+`kubectl get namespace notebook-${WORKFLOW_ID} -o yaml`
+
+Look for `spec:` field if it contains:
+
+    `finalizers:
+
+        - kubernetes`
+
+Then Run: 
+
+`kubectl get namespace notebook-${WORKFLOW_ID} -o json >notebook-${WORKFLOW_ID}.json`
+
+Manually remove the `spec:` field in `notebook-${WORKFLOW_ID}.json`
+
+And Run:
+
+`kube proxy`
+
+On another terminal:
+
+`curl -k -H "Content-Type: application/json" -X PUT --data-binary @notebook-${WORKFLOW_ID}.json http://127.0.0.1:8001/api/v1/namespaces/notebook-a${WORKFLOW_ID}/finalize`
+
+Verify that the namespace is now deleted:
+
+`kubectl get namespace`
 
 # Teardown
 
