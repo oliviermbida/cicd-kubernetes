@@ -22,7 +22,7 @@ parameters:
     default: true      
   oldWorkflowID:
     type: string
-    default: ""
+    default: "02811ab"
 commands:
 # Useful if you don't want to re-run deploy-infrastructure which takes a while.
   check_job:
