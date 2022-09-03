@@ -549,26 +549,26 @@ jobs:
           name: Ensure deployment environments Blue/Green exists
           command: |
             kubectl get namespace
-      - run:
-          name: Smoke Test notebook
-          command: |
-            export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
-            export ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq -r ".status.loadBalancer.ingress[0].hostname")
-            # Wait for 5 minutes for new ingress switch to be ready or trigger rollback
-            timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' || true
-            curl -S $ALB_URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
-            echo "notebook-${WORKFLOW_ID} smoke test"
-            GREEN='\033[0;32m'       
-            RED='\033[0;31m'        
-            NC='\033[0m' 
-            TEST_PASSED=$(cat /tmp/FRONTEND_SMOKE_TEST)
-            if [[ $TEST_PASSED == "Welcome to Express" ]]; then
-              printf "TEST: ${GREEN}PASSED${NC}\n"
-            else
-              printf "TEST: ${RED}FAILED${NC}\n"
-              # trigger rollback
-              exit 1
-            fi
+      # - run:
+      #     name: Smoke Test notebook
+      #     command: |
+      #       export WORKFLOW_ID=${CIRCLE_WORKFLOW_ID:0:7}
+      #       export ALB_URL=$(kubectl get ingress/notebook-${WORKFLOW_ID} -n notebook-${WORKFLOW_ID} -o json | jq -r ".status.loadBalancer.ingress[0].hostname")
+      #       # Wait for 5 minutes for new ingress switch to be ready or trigger rollback
+      #       timeout 300 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' $ALB_URL)" != "200" ]]; do sleep 5; done' || true
+      #       curl -S $ALB_URL | grep -oh "Welcome to Express" > /tmp/FRONTEND_SMOKE_TEST
+      #       echo "notebook-${WORKFLOW_ID} smoke test"
+      #       GREEN='\033[0;32m'       
+      #       RED='\033[0;31m'        
+      #       NC='\033[0m' 
+      #       TEST_PASSED=$(cat /tmp/FRONTEND_SMOKE_TEST)
+      #       if [[ $TEST_PASSED == "Welcome to Express" ]]; then
+      #         printf "TEST: ${GREEN}PASSED${NC}\n"
+      #       else
+      #         printf "TEST: ${RED}FAILED${NC}\n"
+      #         # trigger rollback
+      #         exit 1
+      #       fi
       - run:
           name: Ensure Load Balancer Ingress switched
           command: |

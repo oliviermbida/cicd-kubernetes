@@ -247,7 +247,7 @@ This namespace contains the following resources which will be removed:
 
 `deployment.yml` , `service.yml` and `ingress-old.yml` for the `OLD_WORKFLOW_ID`
 
-# Troubleshoting 
+# Troubleshooting 
 
 Deleted namespace stuck in `Terminating` state :
 
