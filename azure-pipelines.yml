@@ -12,7 +12,7 @@ variables:
   dockerRegistryServiceConnection: azure-pipelines-ci
   imageRepository: 'uavsystems'
   containerRegistry: docker.io #replace with the name of your container registry, Should be in the format example.azurecr.io
-  tag: 'v1.0.$(Build.BuildId)'
+  tag: 'azure.$(Build.BuildId)'
 
 stages:
 - stage: Build
