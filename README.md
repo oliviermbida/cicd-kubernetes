@@ -87,7 +87,9 @@ This step is used to store the previous Workflow ID:
       
           path: /tmp/artifacts     
           
-  Which can then be retrieved by the current Workflow to perform the load balancer ingress switch and cleanup.        
+  Which can then be retrieved using `curl` by the current Workflow to perform the load balancer ingress switch and cleanup.   
+  
+  ![WorkflowID](/docs/images/workflowID.png)
 
 # [AzureBuild]
 
