@@ -13,13 +13,13 @@ parameters:
     default: false  
   run_deploy_app:
     type: boolean
-    default: true  
+    default: false  
   run_update:
     type: boolean
-    default: true  
+    default: false  
   run_cleanup:
     type: boolean
-    default: true      
+    default: false      
   oldWorkflowID:
     type: string
     default: "02811ab"
